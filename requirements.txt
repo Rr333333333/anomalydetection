@@ -6,3 +6,4 @@ scikit-learn
 imblearn
 xgboost
 lightgbm
+gunicorn==23.0.0
