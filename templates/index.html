@@ -1,1 +1,18 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Network Anomaly Detection</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="container">
+    <h1>🧠 Network Anomaly Detection</h1>
+    <p>Upload a CSV dataset (with a <b>label</b> column). If left empty, synthetic data will be used.</p>
+    <form action="/train" method="POST" enctype="multipart/form-data">
+      <input type="file" name="file" accept=".csv"><br><br>
+      <button type="submit">🚀 Train and Analyze</button>
+    </form>
+  </div>
+</body>
+</html>
 
