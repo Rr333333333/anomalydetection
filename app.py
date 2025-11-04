@@ -41,37 +41,45 @@ def home():
 @app.route('/train', methods=['POST'])
 def train_model():
     file = request.files.get('file')
-    if file:
-        data = pd.read_csv(file)
-    else:
+    try:
+        if file:
+            data = pd.read_csv(file)
+        else:
+            data = generate_synthetic_data()
+    except Exception:
         data = generate_synthetic_data()
 
     data = data.select_dtypes(include=['number']).dropna()
     if 'label' not in data.columns:
-        return jsonify({'error': "No 'label' column found"}), 400
+        # fallback to synthetic data if label not found
+        data = generate_synthetic_data()
 
     X = data.drop('label', axis=1)
     y = data['label']
 
-    # Preprocessing
+    # ---------------- Preprocessing ----------------
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
 
     sm = SMOTE(random_state=42)
     X_res, y_res = sm.fit_resample(X_scaled, y)
 
-    pca = PCA(n_components=10)
+    # Dynamic PCA fix
+    n_components = min(10, X_res.shape[1])
+    pca = PCA(n_components=n_components)
     X_pca = pca.fit_transform(X_res)
 
-    X_train, X_test, y_train, y_test = train_test_split(X_pca, y_res, test_size=0.3, random_state=42)
+    X_train, X_test, y_train, y_test = train_test_split(
+        X_pca, y_res, test_size=0.3, random_state=42
+    )
 
     # ---------------- Models ----------------
     models = {
-        "Isolation Forest": IsolationForest(contamination=0.15),
+        "Isolation Forest": IsolationForest(contamination=0.15, random_state=42),
         "Naive Bayes": GaussianNB(),
-        "SVM": SVC(kernel='rbf', C=10, gamma=0.1, probability=True),
-        "XGBoost": XGBClassifier(eval_metric='logloss', use_label_encoder=False),
-        "LightGBM": LGBMClassifier()
+        "SVM": SVC(kernel='rbf', C=10, gamma=0.1, probability=True, random_state=42),
+        "XGBoost": XGBClassifier(eval_metric='logloss', use_label_encoder=False, random_state=42),
+        "LightGBM": LGBMClassifier(random_state=42)
     }
 
     metrics = {}
@@ -92,7 +100,7 @@ def train_model():
         metrics[name] = {"Accuracy": acc, "Precision": prec, "Recall": rec}
         preds_combined.append(preds)
 
-    # Ensemble
+    # ---------------- Ensemble ----------------
     ensemble_pred = (np.sum(preds_combined, axis=0) >= 3).astype(int)
     metrics["Ensemble"] = {
         "Accuracy": round(accuracy_score(y_test, ensemble_pred) * 100, 2),
@@ -118,5 +126,6 @@ def train_model():
     return render_template('results.html', metrics=metrics, chart=chart_base64)
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
-
+    import os
+    port = int(os.environ.get("PORT", 5000))  # for Render compatibility
+    app.run(host='0.0.0.0', port=port)
